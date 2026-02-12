@@ -187,14 +187,16 @@
         let audioChunks = [];
         let isRecording = false;
 
-        // 1. CARGA DE VOCES (Mejorada para Móvil)
+        // 1. CARGA DE VOCES (Mejorada para Móvil con Reintento)
         function populateVoices() {
             voices = synth.getVoices();
             
             if (voices.length === 0) {
-                voiceSelect.innerHTML = '<option>Esperando voces...</option>';
-                return;
+                return; // Seguir esperando
             }
+
+            // Si ya cargamos las voces, limpiar el intervalo
+            if (window.voiceInterval) clearInterval(window.voiceInterval);
 
             voiceSelect.innerHTML = '';
             
@@ -218,10 +220,14 @@
             showStatus('Voces listas', '#10b981');
         }
         
-        // Ejecutar inmediatamente
+        // --- MEJORA PARA MÓVIL ---
+        // Intentar cargar inmediatamente
         populateVoices();
         
-        // Listener crítico para móvil
+        // Si no carga rápido, reintentar cada 100ms hasta que las voces aparezcan
+        window.voiceInterval = setInterval(populateVoices, 100);
+
+        // Listener crítico por si el navegador lo soporta
         if (speechSynthesis.onvoiceschanged !== undefined) {
             speechSynthesis.onvoiceschanged = populateVoices;
         }
