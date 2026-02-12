@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estudio de Voz Pro | Web Speech API</title>
+    <style>
+        :root {
+            --bg-color: #111827;
+            --card-bg: #1f2937;
+            --text-color: #f3f4f6;
+            --accent-color: #8b5cf6; /* Violeta */
+            --accent-hover: #7c3aed;
+            --danger-color: #ef4444;
+            --success-color: #10b981;
+            --secondary-bg: #374151;
+            --font-main: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 15px;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            width: 100%;
+            max-width: 650px;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--secondary-bg);
+            padding-bottom: 15px;
+        }
+
+        h1 { font-size: 1.5rem; font-weight: 700; color: var(--accent-color); }
+
+        .toolbar { display: flex; gap: 8px; }
+
+        .btn-icon {
+            background: var(--secondary-bg);
+            border: none;
+            color: #ccc;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            transition: 0.2s;
+        }
+        .btn-icon:hover { background: var(--accent-color); color: white; }
+
+        /* Controles */
+        .controls-grid {
+            display: grid;
+            gap: 15px;
+            margin-bottom: 20px;
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 12px;
+        }
+
+        label {
+            font-size: 0.75rem; font-weight: 700; color: #9ca3af;
+            text-transform: uppercase; margin-bottom: 5px; display: block;
+        }
+
+        select, input[type="range"] {
+            width: 100%; padding: 8px; background: var(--secondary-bg);
+            border: 1px solid #4b5563; color: white; border-radius: 6px;
+            outline: none; cursor: pointer;
+        }
+
+        .sliders-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
+        /* Área de Texto */
+        textarea {
+            width: 100%; height: 160px; background: var(--secondary-bg);
+            border: 1px solid #4b5563; color: white; border-radius: 8px;
+            padding: 15px; font-size: 1rem; resize: none; outline: none;
+            margin-bottom: 20px; font-family: inherit; line-height: 1.5;
+        }
+        textarea:focus { border-color: var(--accent-color); }
+
+        /* Botones Principales */
+        .action-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+        .btn {
+            padding: 12px; border: none; border-radius: 8px; font-weight: bold;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.96); }
+
+        .btn-play { background: var(--accent-color); color: white; grid-column: span 1; }
+        .btn-rec { background: var(--danger-color); color: white; }
+        .btn-stop { background: var(--secondary-bg); color: white; }
+        
+        .recording-pulse { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        #status { text-align: center; margin-top: 15px; font-size: 0.85rem; color: #6b7280; min-height: 20px; }
+
+        /* Input file oculto */
+        #fileInput { display: none; }
+
+        @media (max-width: 500px) {
+            .sliders-row { grid-template-columns: 1fr; }
+            .action-buttons { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <div>
+                <h1>Estudio de Voz</h1>
+                <small style="color: #6b7280;">Editor & Grabador</small>
+            </div>
+            <div class="toolbar">
+                <button class="btn-icon" onclick="saveProject()" title="Guardar Proyecto (JSON)">💾</button>
+                <button class="btn-icon" onclick="document.getElementById('fileInput').click()" title="Abrir Proyecto">📂</button>
+                <input type="file" id="fileInput" accept=".json" onchange="loadProject(this)">
+            </div>
+        </header>
+
+        <div class="controls-grid">
+            <div>
+                <label>Voz del Sistema</label>
+                <select id="voiceSelect"><option>Cargando voces...</option></select>
+            </div>
+            <div class="sliders-row">
+                <div>
+                    <label>Velocidad: <span id="rateValue">1</span>x</label>
+                    <input type="range" id="rate" min="0.5" max="2" value="1" step="0.1">
+                </div>
+                <div>
+                    <label>Tono: <span id="pitchValue">1</span></label>
+                    <input type="range" id="pitch" min="0" max="2" value="1" step="0.1">
+                </div>
+            </div>
+        </div>
+
+        <textarea id="textInput" placeholder="Escribe aquí tu guion..."></textarea>
+
+        <div class="action-buttons">
+            <button id="btnPlay" class="btn btn-play" onclick="togglePlay()">
+                ▶ Reproducir
+            </button>
+            <button id="btnRec" class="btn btn-rec" onclick="startRecording()">
+                🎙️ Grabar Audio
+            </button>
+            <button class="btn btn-stop" onclick="stopAll()">
+                ⏹ Detener
+            </button>
+        </div>
+
+        <div id="status">Listo.</div>
+    </div>
+
+    <script>
+        const synth = window.speechSynthesis;
+        const textInput = document.getElementById('textInput');
+        const voiceSelect = document.getElementById('voiceSelect');
+        const rateInput = document.getElementById('rate');
+        const pitchInput = document.getElementById('pitch');
+        const statusMsg = document.getElementById('status');
+        
+        let voices = [];
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+
+        // 1. CARGA DE VOCES
+        function populateVoices() {
+            voices = synth.getVoices().sort((a, b) => {
+                const aLang = a.lang.toUpperCase();
+                const bLang = b.lang.toUpperCase();
+                if (aLang.includes('ES') && !bLang.includes('ES')) return -1;
+                if (!aLang.includes('ES') && bLang.includes('ES')) return 1;
+                return a.name.localeCompare(b.name);
+            });
+            
+            voiceSelect.innerHTML = '';
+            voices.forEach((voice, index) => {
+                const option = document.createElement('option');
+                option.textContent = `${voice.name} (${voice.lang})`;
+                option.value = index;
+                if(voice.default) option.selected = true;
+                voiceSelect.appendChild(option);
+            });
+        }
+        
+        populateVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = populateVoices;
+        }
+
+        // Actualizar UI de sliders
+        rateInput.oninput = () => document.getElementById('rateValue').innerText = rateInput.value;
+        pitchInput.oninput = () => document.getElementById('pitchValue').innerText = pitchInput.value;
+
+        // 2. FUNCIÓN DE HABLAR
+        function speak(onEndCallback) {
+            if (synth.speaking) synth.cancel();
+            if (textInput.value.trim() === '') return showStatus('⚠️ Escribe algo primero', 'orange');
+
+            const utterThis = new SpeechSynthesisUtterance(textInput.value);
+            utterThis.voice = voices[voiceSelect.value];
+            utterThis.rate = rateInput.value;
+            utterThis.pitch = pitchInput.value;
+
+            utterThis.onend = () => {
+                document.getElementById('btnPlay').innerText = "▶ Reproducir";
+                if(onEndCallback) onEndCallback();
+            };
+            
+            utterThis.onerror = (e) => showStatus('Error de síntesis', 'red');
+
+            synth.speak(utterThis);
+            document.getElementById('btnPlay').innerText = "⏸ Pausar";
+            showStatus('Leyendo...', '#10b981');
+        }
+
+        function togglePlay() {
+            if (synth.speaking && !synth.paused) {
+                synth.pause();
+                document.getElementById('btnPlay').innerText = "▶ Reanudar";
+                showStatus('Pausado', 'orange');
+            } else if (synth.paused) {
+                synth.resume();
+                document.getElementById('btnPlay').innerText = "⏸ Pausar";
+                showStatus('Leyendo...', '#10b981');
+            } else {
+                speak();
+            }
+        }
+
+        function stopAll() {
+            synth.cancel();
+            if (isRecording) stopRecording();
+            document.getElementById('btnPlay').innerText = "▶ Reproducir";
+            showStatus('Detenido', '#6b7280');
+        }
+
+        // 3. SISTEMA DE GRABACIÓN (HACK)
+        async function startRecording() {
+            if (textInput.value.trim() === '') return showStatus('⚠️ Escribe texto para grabar', 'orange');
+
+            // Explicación técnica: Capturamos el audio del sistema o micrófono
+            // Nota: En móviles grabará el micrófono (debes estar en silencio).
+            try {
+                showStatus('📢 Concede permiso de micrófono para grabar la salida...', 'orange');
+                
+                // Pedimos acceso al audio
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+                
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    downloadFile(audioUrl, 'grabacion_voz.webm');
+                    
+                    // Detener tracks del micrófono
+                    stream.getTracks().forEach(track => track.stop());
+                    isRecording = false;
+                    document.getElementById('btnRec').classList.remove('recording-pulse');
+                    showStatus('✅ Audio descargado', '#10b981');
+                };
+
+                // Iniciar
+                mediaRecorder.start();
+                isRecording = true;
+                document.getElementById('btnRec').classList.add('recording-pulse');
+                
+                // Comenzar a hablar y detener grabación al terminar
+                speak(() => {
+                    if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+                });
+
+            } catch (err) {
+                console.error(err);
+                showStatus('❌ Error: Se requiere permiso de micrófono', 'red');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
+
+        // 4. GUARDAR Y ABRIR PROYECTO (JSON)
+        function saveProject() {
+            const data = {
+                text: textInput.value,
+                rate: rateInput.value,
+                pitch: pitchInput.value,
+                voiceIndex: voiceSelect.value,
+                voiceName: voices[voiceSelect.value]?.name || 'Default'
+            };
+            
+            const jsonStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            downloadFile(url, 'proyecto_voz.json');
+            showStatus('💾 Proyecto guardado', '#10b981');
+        }
+
+        function loadProject(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Restaurar valores
+                    textInput.value = data.text || "";
+                    rateInput.value = data.rate || 1;
+                    pitchInput.value = data.pitch || 1;
+                    
+                    // Actualizar UI
+                    document.getElementById('rateValue').innerText = data.rate;
+                    document.getElementById('pitchValue').innerText = data.pitch;
+                    
+                    // Intentar recuperar la voz
+                    if (data.voiceName) {
+                        const index = Array.from(voiceSelect.options).findIndex(opt => opt.text.includes(data.voiceName));
+                        if (index !== -1) voiceSelect.value = index;
+                    }
+
+                    showStatus('📂 Proyecto cargado', '#10b981');
+                } catch (err) {
+                    showStatus('❌ Error al leer archivo', 'red');
+                }
+            };
+            reader.readAsText(file);
+            input.value = ""; // Reset input
+        }
+
+        // Utilidad de descarga
+        function downloadFile(url, filename) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        function showStatus(msg, color) {
+            statusMsg.innerText = msg;
+            statusMsg.style.color = color;
+        }
+    </script>
+</body>
+</html>
